@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { Transaction, ProductPrice, OllaLocation } from '../types';
 import Card from './shared/Card';
-import { Heart, Package, User, Plus, MapPin, Repeat } from 'lucide-react';
+import { Heart, Package, User, Plus, MapPin, Repeat, Calendar, X } from 'lucide-react';
 
 interface DonationManagerProps {
   addTransaction: (newTx: Omit<Transaction, 'id' | 'hash' | 'date'>) => void;
   priceData: ProductPrice[];
   ollas: OllaLocation[];
+  onAddDonationToInventory?: (donation: { product: string; quantity: number; unit: string }, addToDaily: boolean) => void;
 }
 
-const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, priceData, ollas }) => {
+const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, priceData, ollas, onAddDonationToInventory }) => {
   const [transactionType, setTransactionType] = useState<'Donación' | 'Intercambio'>('Donación');
   const [newTransaction, setNewTransaction] = useState({ 
     product: '', 
@@ -20,6 +21,8 @@ const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, price
   });
   const [suggestions, setSuggestions] = useState<ProductPrice[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showDonationDialog, setShowDonationDialog] = useState(false);
+  const [lastDonation, setLastDonation] = useState<{ product: string; quantity: number; unit: string } | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -58,6 +61,17 @@ const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, price
         : (newTransaction.from || 'Donante Anónimo'),
       to: newTransaction.to,
     });
+
+    // Si es una donación, mostrar diálogo para agregar al inventario
+    if (transactionType === 'Donación' && onAddDonationToInventory) {
+      setLastDonation({
+        product: newTransaction.product,
+        quantity: newTransaction.quantity,
+        unit: newTransaction.unit
+      });
+      setShowDonationDialog(true);
+    }
+
     setNewTransaction({ 
       product: '', 
       quantity: 1, 
@@ -66,6 +80,19 @@ const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, price
       to: ollas[0]?.name || '' 
     });
     setError(null);
+  };
+
+  const handleAddToInventory = (addToDaily: boolean) => {
+    if (lastDonation && onAddDonationToInventory) {
+      onAddDonationToInventory(lastDonation, addToDaily);
+    }
+    setShowDonationDialog(false);
+    setLastDonation(null);
+  };
+
+  const handleSkipInventory = () => {
+    setShowDonationDialog(false);
+    setLastDonation(null);
   };
   
   return (
@@ -271,6 +298,62 @@ const DonationManager: React.FC<DonationManagerProps> = ({ addTransaction, price
           </div>
         )}
       </Card>
+
+      {/* Diálogo para agregar donación al inventario */}
+      {showDonationDialog && lastDonation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-pink-500 to-red-500 p-2 rounded-lg">
+                  <Heart className="text-white" size={24} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">¿Agregar al Inventario?</h3>
+              </div>
+              <button
+                onClick={handleSkipInventory}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                La donación de <strong>{lastDonation.quantity} {lastDonation.unit}</strong> de <strong>{lastDonation.product}</strong> ha sido registrada.
+              </p>
+              <p className="text-gray-600 text-sm mb-4">
+                ¿Deseas agregarla al inventario?
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => handleAddToInventory(true)}
+                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Calendar size={20} />
+                Agregar a Uso Diario (para cocinar hoy)
+              </button>
+              
+              <button
+                onClick={() => handleAddToInventory(false)}
+                className="w-full bg-gradient-to-r from-[#f7931e] to-[#ff9f3a] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              >
+                <Package size={20} />
+                Guardar en Inventario Total (para usar durante la semana)
+              </button>
+              
+              <button
+                onClick={handleSkipInventory}
+                className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-all"
+              >
+                No agregar al inventario
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

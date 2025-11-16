@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { InventoryItem, DailyInventoryItem, ProductPrice, GeneratedRecipe, IpcData, Substitute, OllaInventoryStatus, OllaLocation } from '../types';
 import { generateRecipe, recommendSubstitutes } from '../services/geminiService';
 import { optimizeSingleRecipe, OptimizationResult } from '../services/optimizationService';
 import Card from './shared/Card';
 import Spinner from './shared/Spinner';
-import { Plus, Trash2, ChefHat, Package, DollarSign, Users, ShoppingCart, AlertCircle, ArrowRight, Calendar, Minus, MapPin, Zap, X, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, ChefHat, Package, DollarSign, Users, ShoppingCart, AlertCircle, ArrowRight, Calendar, Minus, MapPin, Zap, X, TrendingUp, Heart } from 'lucide-react';
 
 interface RecipeGeneratorProps {
   priceData: ProductPrice[];
@@ -14,13 +14,17 @@ interface RecipeGeneratorProps {
   updateOllaInventory?: (status: OllaInventoryStatus) => void;
 }
 
-const RecipeGenerator: React.FC<RecipeGeneratorProps> = ({ 
+export interface RecipeGeneratorRef {
+  addDonationToInventory: (donation: { product: string; quantity: number; unit: string }, addToDaily?: boolean) => void;
+}
+
+const RecipeGenerator = forwardRef<RecipeGeneratorRef, RecipeGeneratorProps>(({ 
   priceData, 
   ipcData, 
   ollas = [],
   ollaInventoryStatuses = [],
   updateOllaInventory
-}) => {
+}, ref) => {
   // Inventario total (almacén) - con persistencia en localStorage
   const [totalInventory, setTotalInventory] = useState<InventoryItem[]>(() => {
     try {
@@ -229,6 +233,71 @@ const RecipeGenerator: React.FC<RecipeGeneratorProps> = ({
       setSuggestions([]);
     }
   };
+
+  // Función para agregar donación al inventario
+  const addDonationToInventory = (donation: { product: string; quantity: number; unit: string }, addToDaily: boolean = false) => {
+    const existingItem = totalInventory.find(item => item.name.toLowerCase() === donation.product.toLowerCase());
+    const newItem: InventoryItem = {
+      id: Date.now().toString(),
+      name: donation.product,
+      quantity: donation.quantity,
+      unit: donation.unit,
+      isDonation: true
+    };
+
+    if (existingItem) {
+      // Si existe, sumar la cantidad y mantener el flag de donación si ya lo tenía
+      setTotalInventory(totalInventory.map(item =>
+        item.id === existingItem.id 
+          ? { ...item, quantity: item.quantity + donation.quantity, isDonation: item.isDonation || true }
+          : item
+      ));
+      
+      // Si se debe agregar al inventario diario
+      if (addToDaily) {
+        const existingDaily = dailyInventory.find(item => item.fromInventoryId === existingItem.id);
+        const newQuantity = existingItem.quantity + donation.quantity;
+        if (existingDaily) {
+          setDailyInventory(dailyInventory.map(item =>
+            item.id === existingDaily.id 
+              ? { ...item, quantity: Math.min(item.quantity + donation.quantity, newQuantity), isDonation: true }
+              : item
+          ));
+        } else {
+          setDailyInventory([...dailyInventory, {
+            id: Date.now().toString(),
+            name: existingItem.name,
+            quantity: Math.min(donation.quantity, newQuantity),
+            unit: existingItem.unit,
+            fromInventoryId: existingItem.id,
+            isDonation: true
+          }]);
+        }
+      }
+    } else {
+      // Si no existe, agregarlo nuevo
+      setTotalInventory([...totalInventory, newItem]);
+      
+      // Si se debe agregar al inventario diario
+      if (addToDaily) {
+        setDailyInventory([...dailyInventory, {
+          id: Date.now().toString() + '-daily',
+          name: newItem.name,
+          quantity: newItem.quantity,
+          unit: newItem.unit,
+          fromInventoryId: newItem.id,
+          isDonation: true
+        }]);
+      }
+    }
+  };
+
+  // Exponer función para agregar donaciones usando useImperativeHandle
+  useImperativeHandle(ref, () => ({
+    addDonationToInventory: (donation: { product: string; quantity: number; unit: string }, addToDaily: boolean = false) => {
+      addDonationToInventory(donation, addToDaily);
+    }
+  }));
 
   const removeFromTotalInventory = (id: string) => {
     setTotalInventory(totalInventory.filter(item => item.id !== id));
@@ -789,6 +858,12 @@ const RecipeGenerator: React.FC<RecipeGeneratorProps> = ({
                 <div className="flex items-center gap-3">
                   <Package size={18} className="text-gray-500" />
                   <span className="capitalize font-medium text-gray-800">{item.name}</span>
+                  {item.isDonation && (
+                    <span className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1" title="Donación">
+                      <Heart size={12} />
+                      Donación
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm font-semibold text-[#f7931e] bg-[#fff8ed] px-3 py-1 rounded-full">
@@ -895,6 +970,12 @@ const RecipeGenerator: React.FC<RecipeGeneratorProps> = ({
                   <div className="flex items-center gap-3">
                     <Calendar size={18} className="text-blue-600" />
                     <span className="capitalize font-medium text-gray-800">{item.name}</span>
+                    {item.isDonation && (
+                      <span className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1" title="Donación">
+                        <Heart size={12} />
+                        Donación
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 bg-white px-2 py-1 rounded">
@@ -1613,6 +1694,8 @@ const RecipeGenerator: React.FC<RecipeGeneratorProps> = ({
       )}
     </div>
   );
-};
+});
+
+RecipeGenerator.displayName = 'RecipeGenerator';
 
 export default RecipeGenerator;

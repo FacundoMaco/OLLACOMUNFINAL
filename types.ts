@@ -3,6 +3,7 @@ export interface InventoryItem {
   name: string;
   quantity: number;
   unit: string;
+  isDonation?: boolean; // Flag para identificar donaciones
 }
 
 export interface DailyInventoryItem {
@@ -11,6 +12,7 @@ export interface DailyInventoryItem {
   quantity: number;
   unit: string;
   fromInventoryId: string; // Referencia al inventario total
+  isDonation?: boolean; // Flag para identificar donaciones
 }
 
 export interface OllaInventoryStatus {

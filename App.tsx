@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
-import RecipeGenerator from './components/RecipeGenerator';
+import RecipeGenerator, { RecipeGeneratorRef } from './components/RecipeGenerator';
 import ExchangeMap from './components/ExchangeMap';
 import BlockchainLedger from './components/BlockchainLedger';
 import Dashboard from './components/Dashboard';
@@ -64,6 +64,9 @@ const App: React.FC = () => {
   });
 
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Ref para RecipeGenerator para poder agregar donaciones al inventario
+  const recipeGeneratorRef = useRef<RecipeGeneratorRef>(null);
   
   // Estado compartido para inventario por olla (conecta RecipeGenerator con ExchangeMap) - con persistencia
   const [ollaInventoryStatuses, setOllaInventoryStatuses] = useState<OllaInventoryStatus[]>(() => {
@@ -354,6 +357,7 @@ const App: React.FC = () => {
         return <Dashboard transactions={transactions} ollas={ollas} />;
       case 'recipes':
         return <RecipeGenerator 
+          ref={recipeGeneratorRef}
           priceData={priceData} 
           ipcData={ipcData} 
           ollas={ollas} 
@@ -364,7 +368,12 @@ const App: React.FC = () => {
         return <DonationManager 
           addTransaction={addTransaction} 
           priceData={priceData} 
-          ollas={ollas} 
+          ollas={ollas}
+          onAddDonationToInventory={(donation, addToDaily) => {
+            if (recipeGeneratorRef.current) {
+              recipeGeneratorRef.current.addDonationToInventory(donation, addToDaily);
+            }
+          }}
         />;
       case 'map':
         return <ExchangeMap 
