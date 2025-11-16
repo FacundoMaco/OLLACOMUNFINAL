@@ -125,6 +125,12 @@ const App: React.FC = () => {
   }, [ollaInventoryStatuses]);
 
   useEffect(() => {
+    // Timeout de seguridad: si después de 5 segundos no se carga, continuar de todas formas
+    const safetyTimeout = setTimeout(() => {
+      console.warn('Timeout de seguridad: continuando aunque los datos no se hayan cargado completamente');
+      setIsLoading(false);
+    }, 5000);
+
     // Esperar a que PapaParse esté disponible
     let retryCount = 0;
     const maxRetries = 50; // 5 segundos máximo de espera
@@ -132,6 +138,7 @@ const App: React.FC = () => {
     const waitForPapa = () => {
       if (typeof window !== 'undefined' && (window as any).Papa) {
         console.log('PapaParse cargado correctamente');
+        clearTimeout(safetyTimeout);
         parseAllData();
       } else if (retryCount < maxRetries) {
         retryCount++;
@@ -141,6 +148,7 @@ const App: React.FC = () => {
         setTimeout(waitForPapa, 100);
       } else {
         console.error('PapaParse no se pudo cargar después de múltiples intentos');
+        clearTimeout(safetyTimeout);
         setIsLoading(false);
       }
     };
@@ -165,6 +173,7 @@ const App: React.FC = () => {
       const Papa = (window as any).Papa;
       if (!Papa) {
         console.error('PapaParse no está disponible');
+        clearTimeout(safetyTimeout);
         setIsLoading(false);
         return;
       }
@@ -173,7 +182,8 @@ const App: React.FC = () => {
       const onComplete = () => {
         loadingCounter--;
         if (loadingCounter === 0) {
-           setIsLoading(false);
+          clearTimeout(safetyTimeout);
+          setIsLoading(false);
         }
       }
 
@@ -181,6 +191,7 @@ const App: React.FC = () => {
         console.error('Error al parsear datos:', error);
         loadingCounter--;
         if (loadingCounter === 0) {
+          clearTimeout(safetyTimeout);
           setIsLoading(false);
         }
       }
@@ -296,7 +307,7 @@ const App: React.FC = () => {
     
     // Cleanup function
     return () => {
-      // Cleanup si es necesario
+      clearTimeout(safetyTimeout);
     };
   }, []);
   

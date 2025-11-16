@@ -5,8 +5,20 @@ import { GeneratedRecipe, InventoryItem, ProductPrice, Substitute } from "../typ
 const getApiKey = (): string | undefined => {
   // Vite expone automáticamente variables que empiezan con VITE_
   // En el navegador solo podemos usar import.meta.env, no process.env
-  return import.meta.env.VITE_GEMINI_API_KEY || 
-         (window as any).__GEMINI_API_KEY__;
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 
+                 (window as any).__GEMINI_API_KEY__;
+  // Debug: verificar si la variable está cargada (solo en desarrollo)
+  if (import.meta.env.DEV) {
+    if (apiKey) {
+      console.log('✅ VITE_GEMINI_API_KEY cargada correctamente');
+    } else {
+      console.warn('⚠️ VITE_GEMINI_API_KEY no encontrada.');
+      console.warn('   Verifica que el archivo .env existe en la raíz del proyecto');
+      console.warn('   y que el servidor se reinició después de crear/modificar el .env');
+      console.warn('   Valor de import.meta.env.VITE_GEMINI_API_KEY:', import.meta.env.VITE_GEMINI_API_KEY);
+    }
+  }
+  return apiKey;
 };
 
 // Inicializar el cliente de manera lazy para evitar errores al cargar el módulo

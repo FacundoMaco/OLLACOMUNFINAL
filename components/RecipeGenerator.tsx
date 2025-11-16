@@ -234,70 +234,72 @@ const RecipeGenerator = forwardRef<RecipeGeneratorRef, RecipeGeneratorProps>(({
     }
   };
 
-  // Función para agregar donación al inventario
-  const addDonationToInventory = (donation: { product: string; quantity: number; unit: string }, addToDaily: boolean = false) => {
-    const existingItem = totalInventory.find(item => item.name.toLowerCase() === donation.product.toLowerCase());
-    const newItem: InventoryItem = {
-      id: Date.now().toString(),
-      name: donation.product,
-      quantity: donation.quantity,
-      unit: donation.unit,
-      isDonation: true
-    };
+  // Función para agregar donación al inventario usando useCallback para evitar problemas de referencia
+  const addDonationToInventory = useCallback((donation: { product: string; quantity: number; unit: string }, addToDaily: boolean = false) => {
+    setTotalInventory(prevInventory => {
+      const existingItem = prevInventory.find(item => item.name.toLowerCase() === donation.product.toLowerCase());
+      const newItem: InventoryItem = {
+        id: Date.now().toString(),
+        name: donation.product,
+        quantity: donation.quantity,
+        unit: donation.unit,
+        isDonation: true
+      };
 
-    if (existingItem) {
-      // Si existe, sumar la cantidad y mantener el flag de donación si ya lo tenía
-      setTotalInventory(totalInventory.map(item =>
-        item.id === existingItem.id 
-          ? { ...item, quantity: item.quantity + donation.quantity, isDonation: item.isDonation || true }
-          : item
-      ));
-      
-      // Si se debe agregar al inventario diario
-      if (addToDaily) {
-        const existingDaily = dailyInventory.find(item => item.fromInventoryId === existingItem.id);
-        const newQuantity = existingItem.quantity + donation.quantity;
-        if (existingDaily) {
-          setDailyInventory(dailyInventory.map(item =>
-            item.id === existingDaily.id 
-              ? { ...item, quantity: Math.min(item.quantity + donation.quantity, newQuantity), isDonation: true }
-              : item
-          ));
-        } else {
-          setDailyInventory([...dailyInventory, {
-            id: Date.now().toString(),
-            name: existingItem.name,
-            quantity: Math.min(donation.quantity, newQuantity),
-            unit: existingItem.unit,
-            fromInventoryId: existingItem.id,
+      if (existingItem) {
+        // Si existe, sumar la cantidad y mantener el flag de donación si ya lo tenía
+        const updatedInventory = prevInventory.map(item =>
+          item.id === existingItem.id 
+            ? { ...item, quantity: item.quantity + donation.quantity, isDonation: item.isDonation || true }
+            : item
+        );
+        
+        // Si se debe agregar al inventario diario
+        if (addToDaily) {
+          setDailyInventory(prevDaily => {
+            const existingDaily = prevDaily.find(item => item.fromInventoryId === existingItem.id);
+            const newQuantity = existingItem.quantity + donation.quantity;
+            if (existingDaily) {
+              return prevDaily.map(item =>
+                item.id === existingDaily.id 
+                  ? { ...item, quantity: Math.min(item.quantity + donation.quantity, newQuantity), isDonation: true }
+                  : item
+              );
+            } else {
+              return [...prevDaily, {
+                id: Date.now().toString(),
+                name: existingItem.name,
+                quantity: Math.min(donation.quantity, newQuantity),
+                unit: existingItem.unit,
+                fromInventoryId: existingItem.id,
+                isDonation: true
+              }];
+            }
+          });
+        }
+        
+        return updatedInventory;
+      } else {
+        // Si no existe, agregarlo nuevo
+        if (addToDaily) {
+          setDailyInventory(prevDaily => [...prevDaily, {
+            id: Date.now().toString() + '-daily',
+            name: newItem.name,
+            quantity: newItem.quantity,
+            unit: newItem.unit,
+            fromInventoryId: newItem.id,
             isDonation: true
           }]);
         }
+        return [...prevInventory, newItem];
       }
-    } else {
-      // Si no existe, agregarlo nuevo
-      setTotalInventory([...totalInventory, newItem]);
-      
-      // Si se debe agregar al inventario diario
-      if (addToDaily) {
-        setDailyInventory([...dailyInventory, {
-          id: Date.now().toString() + '-daily',
-          name: newItem.name,
-          quantity: newItem.quantity,
-          unit: newItem.unit,
-          fromInventoryId: newItem.id,
-          isDonation: true
-        }]);
-      }
-    }
-  };
+    });
+  }, []);
 
   // Exponer función para agregar donaciones usando useImperativeHandle
   useImperativeHandle(ref, () => ({
-    addDonationToInventory: (donation: { product: string; quantity: number; unit: string }, addToDaily: boolean = false) => {
-      addDonationToInventory(donation, addToDaily);
-    }
-  }));
+    addDonationToInventory
+  }), [addDonationToInventory]);
 
   const removeFromTotalInventory = (id: string) => {
     setTotalInventory(totalInventory.filter(item => item.id !== id));
@@ -310,7 +312,7 @@ const RecipeGenerator = forwardRef<RecipeGeneratorRef, RecipeGeneratorProps>(({
     if (existingDaily) {
       setDailyInventory(dailyInventory.map(item =>
         item.id === existingDaily.id 
-          ? { ...item, quantity: Math.min(item.quantity + 1, inventoryItem.quantity) }
+          ? { ...item, quantity: Math.min(item.quantity + 1, inventoryItem.quantity), isDonation: inventoryItem.isDonation || item.isDonation }
           : item
       ));
     } else {
@@ -319,7 +321,8 @@ const RecipeGenerator = forwardRef<RecipeGeneratorRef, RecipeGeneratorProps>(({
         name: inventoryItem.name,
         quantity: 1,
         unit: inventoryItem.unit,
-        fromInventoryId: inventoryItem.id
+        fromInventoryId: inventoryItem.id,
+        isDonation: inventoryItem.isDonation
       }]);
     }
   };
@@ -859,8 +862,8 @@ const RecipeGenerator = forwardRef<RecipeGeneratorRef, RecipeGeneratorProps>(({
                   <Package size={18} className="text-gray-500" />
                   <span className="capitalize font-medium text-gray-800">{item.name}</span>
                   {item.isDonation && (
-                    <span className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1" title="Donación">
-                      <Heart size={12} />
+                    <span className="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md animate-pulse" title="Donación">
+                      <Heart size={12} fill="currentColor" />
                       Donación
                     </span>
                   )}

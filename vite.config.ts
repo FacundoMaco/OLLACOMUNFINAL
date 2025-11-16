@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   server: {
-    port: 3001,
+    port: 3000,
     host: '0.0.0.0',
     watch: {
       // Ignorar cambios en archivos que no deberían causar recarga
@@ -20,6 +20,13 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['javascript-lp-solver']
+    include: ['javascript-lp-solver'],
+    // Pre-empaquetar dependencias comunes para acelerar el inicio
+    entries: ['index.html']
+  },
+  // Acelerar el inicio deshabilitando algunas optimizaciones en desarrollo
+  build: {
+    target: 'esnext',
+    minify: false
   }
 });
